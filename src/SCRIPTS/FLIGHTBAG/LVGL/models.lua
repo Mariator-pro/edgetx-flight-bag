@@ -43,10 +43,11 @@ return function(ctx)
     pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):button({ text = text, w = lvgl.PERCENT_SIZE + 96, press = press })
   end
 
-  -- Setting row titled `title`; returns the box of its value column.
+  -- Setting row titled `title`, shown while visible() is true (always without);
+  -- returns the box of its value column.
   -- CENTER: in a row EdgeTX takes the vertical placement from the horizontal flag.
-  local function setting(pg, title)
-    local s = pg:setting({ w = WIDE, title = title })
+  local function setting(pg, title, visible)
+    local s = pg:setting({ w = WIDE, title = title, visible = visible })
     return s:box({ x = VALUE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, align = CENTER })
   end
 
@@ -235,17 +236,19 @@ return function(ctx)
   function Show.logs()
     local d = M.logs
     local pg = page("SD logs  " .. M.name(M.model.filename), cancelLogs)
-    -- Without a trigger yet the list starts with a placeholder (a choice needs a value).
-    local labels, _, ids = M.logsTriggerChoices()
+    setting(pg, "Log"):choice({ title = "Log", values = M.LOG_MODES,
+      get = M.logsMode, set = M.setLogsMode })
+    -- Without an arm switch yet the list starts with a placeholder (a choice needs a value).
+    local labels, _, ids = M.logsArmChoices()
     local off = d.switch and 0 or 1
-    if off == 1 then table.insert(labels, 1, M.logsTrigger()) end
-    setting(pg, "Trigger"):choice({ title = "Trigger", values = labels,
+    if off == 1 then table.insert(labels, 1, M.logsArm()) end
+    setting(pg, "Arm switch", function() return not d.always end):choice({ title = "Arm switch", values = labels,
       get = function()
         if not d.switch then return 1 end
-        local _, i = M.logsTriggerChoices()
+        local _, i = M.logsArmChoices()
         return i + off
       end,
-      set = function(i) if i > off then M.setLogsSwitch(ids[i - off]) end end })
+      set = function(i) if i > off then M.setLogsArm(ids[i - off]) end end })
     local L = M.LOG_INTERVAL
     setting(pg, "Interval"):numberEdit({ min = L.min, max = L.max, get = function() return d.interval end,
       set = function(v) d.interval = v end, display = M.intervalText })
@@ -259,7 +262,7 @@ return function(ctx)
         pg:label({ text = "Log sensors: all " .. total .. " found", w = WIDE, color = C })
       end
     else
-      help(pg, { "Choose the arm switch, or Always on", "to log from power-on to power-off." })
+      help(pg, { "Armed: one log file per flight.", "Always on: from power-on to power-off." })
     end
     local list = { { "Back", cancelLogs }, { d.exists and "Apply" or "Set up", applyLogs } }
     if d.exists then
