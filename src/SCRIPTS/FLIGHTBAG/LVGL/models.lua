@@ -3,8 +3,8 @@
 -- =====================================================================
 -- SD card path: /SCRIPTS/FLIGHTBAG/LVGL/models.lua
 -- Native view of models_model.lua: model list, editor (cells, parallel
--- packs), battery assignment, sensor mapping and Wingman's module switches,
--- each as its own EdgeTX page.
+-- packs), battery assignment, sensor mapping, Wingman's module switches and
+-- the model's SD logs, each as its own EdgeTX page.
 -- =====================================================================
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 Mariator-pro
@@ -153,8 +153,11 @@ return function(ctx)
       elseif id == "sensors" then
         setting(pg, "Sensors"):button({ text = M.sensorsAreCustom(m.sensors) and "custom" or "default",
                                         press = function() M.openSensors(); Show.sensors() end })
-      else
+      elseif id == "modules" then
         setting(pg, "Show in Wingman"):button({ text = M.modsText(), press = Show.modules })
+      else
+        setting(pg, "SD logs"):button({ text = M.logsText(), active = function() return M.isActive end,
+                                        press = function() M.openLogs(); Show.logs() end })
       end
     end
     local list = { { "Back", cancelModel }, { "Save", saveModel } }
@@ -212,6 +215,59 @@ return function(ctx)
       help(pg, M.MODULES[k].desc)
     end
     buttons(pg, { { "Back", Show.model } })
+  end
+
+  -- ---------------------------------------------------------------------------
+  -- SD logs: the model's "SD Logs" special function, changed at once
+  -- ---------------------------------------------------------------------------
+
+  local function cancelLogs()
+    if M.logsDirty() then ask("Discard changes?", Show.model) else Show.model() end
+  end
+
+  local function applyLogs()
+    local ok, err = M.applyLogs()
+    if ok then Show.model()
+    elseif err == "switch" then tell("Choose the arm switch first.")
+    else tell("No free special function. Remove one in the model.") end
+  end
+
+  function Show.logs()
+    local d = M.logs
+    local pg = page("SD logs  " .. M.name(M.model.filename), cancelLogs)
+    -- Without a trigger yet the list starts with a placeholder (a choice needs a value).
+    local labels, _, ids = M.logsTriggerChoices()
+    local off = d.switch and 0 or 1
+    if off == 1 then table.insert(labels, 1, M.logsTrigger()) end
+    setting(pg, "Trigger"):choice({ title = "Trigger", values = labels,
+      get = function()
+        if not d.switch then return 1 end
+        local _, i = M.logsTriggerChoices()
+        return i + off
+      end,
+      set = function(i) if i > off then M.setLogsSwitch(ids[i - off]) end end })
+    local L = M.LOG_INTERVAL
+    setting(pg, "Interval"):numberEdit({ min = L.min, max = L.max, get = function() return d.interval end,
+      set = function(v) d.interval = v end, display = M.intervalText })
+    if d.exists then
+      local found, total = M.logSensors()
+      if total > 0 and found < total then
+        pg:label({ text = "Log sensors: " .. found .. " of " .. total .. " found", w = WIDE,
+                   color = COLOR_THEME_WARNING })
+        help(pg, { "Open Model > Telemetry and select", "Discover new sensors while the apps run." })
+      elseif total > 0 then
+        pg:label({ text = "Log sensors: all " .. total .. " found", w = WIDE, color = C })
+      end
+    else
+      help(pg, { "Choose the arm switch, or Always on", "to log from power-on to power-off." })
+    end
+    local list = { { "Back", cancelLogs }, { d.exists and "Apply" or "Set up", applyLogs } }
+    if d.exists then
+      list[3] = { "Remove", function()
+        ask("Remove SD logs from this model?", function() M.removeLogs(); Show.model() end)
+      end }
+    end
+    buttons(pg, list)
   end
 
   Show.list()

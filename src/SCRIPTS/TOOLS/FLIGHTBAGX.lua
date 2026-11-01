@@ -154,7 +154,7 @@ local function openPage(p)
     showStart()
   end
   lvgl.clear()
-  local ok, err = pcall(mk, { lib = A, apps = A.pageApps(apps, p), id = p.id, title = p.label, close = close })
+  local ok, err = pcall(mk, { lib = A, apps = A.pageApps(apps, p), allApps = apps, id = p.id, title = p.label, close = close })
   if not ok then
     close()
     lvgl.message({ title = p.label, message = "Error: " .. tostring(err) })
