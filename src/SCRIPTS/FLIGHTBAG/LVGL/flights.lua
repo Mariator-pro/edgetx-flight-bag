@@ -37,6 +37,7 @@ return function(ctx)
   left:label({ text = function() return M.stamp(cur()) end, color = C })
   left:label({ text = function() return cur().model end, color = C,
                visible = function() return cur().model ~= "" end })
+  left:label({ text = "LAST POSITION", color = DIM })
   for _, c in ipairs({ { "LAT", "lat" }, { "LON", "lon" } }) do
     left:box({ flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, children = {
       { type = "label", text = c[1], color = DIM },
@@ -53,12 +54,12 @@ return function(ctx)
     idx = idx + d
     qr:set({ data = M.url(cur()) })
   end
-  local half = lvgl.PERCENT_SIZE + 48
+  local third = lvgl.PERCENT_SIZE + 32
   left:box({ w = lvgl.PERCENT_SIZE + 100, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_SMALL, children = {
-    { type = "button", text = "Newer", w = half, press = function() go(-1) end,
+    { type = "button", text = "Newer", w = third, press = function() go(-1) end,
       active = function() return idx > 1 end },
-    { type = "button", text = "Older", w = half, press = function() go(1) end,
+    { type = "button", text = "Older", w = third, press = function() go(1) end,
       active = function() return idx < #flights end },
+    { type = "button", text = "Back", w = third, press = ctx.close },
   } })
-  left:button({ text = "Back", w = lvgl.PERCENT_SIZE + 98, press = ctx.close })
 end
