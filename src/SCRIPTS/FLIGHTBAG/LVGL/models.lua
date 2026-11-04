@@ -2,9 +2,9 @@
 -- models.lua  --  Flight Bag (EdgeTX UI) page "Models"
 -- =====================================================================
 -- SD card path: /SCRIPTS/FLIGHTBAG/LVGL/models.lua
--- Native view of models_model.lua: model list, editor (cells, parallel
--- packs), battery assignment, sensor mapping, Wingman's module switches and
--- the model's SD logs, each as its own EdgeTX page.
+-- Native view of models_model.lua: model list, model page, battery page
+-- (cells, parallel packs), battery assignment, sensor mapping, Wingman's
+-- module switches and the model's SD logs, each as its own EdgeTX page.
 -- =====================================================================
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 Mariator-pro
@@ -98,7 +98,7 @@ return function(ctx)
   end
 
   -- ---------------------------------------------------------------------------
-  -- Model editor
+  -- Model page
   -- ---------------------------------------------------------------------------
 
   local function finishSave()
@@ -142,18 +142,8 @@ return function(ctx)
     local m = M.model
     local pg = page((M.isNew and "Add model  " or "Edit model  ") .. M.name(m.filename), cancelModel)
     for _, id in ipairs(M.rows()) do
-      if id == "cells" then
-        local L = M.LIMITS.cells
-        setting(pg, "Cells"):numberEdit({ min = L.min, max = L.max, get = function() return m.cells end,
-          set = function(v) m.cells = v end, display = function(v) return v .. "S" end })
-      elseif id == "parallel" then
-        setting(pg, "Parallel packs"):toggle({ get = function() return m.parallel end,
-          set = function(v) m.parallel = v == 1 end })
-      elseif id == "batteries" then
-        setting(pg, "Batteries"):button({ text = #m.batteryIds .. " selected", press = Show.assign })
-      elseif id == "sensors" then
-        setting(pg, "Sensors"):button({ text = M.sensorsAreCustom(m.sensors) and "custom" or "default",
-                                        press = function() M.openSensors(); Show.sensors() end })
+      if id == "battery" then
+        setting(pg, "Battery"):button({ text = M.batteryText(), press = Show.battery })
       elseif id == "modules" then
         setting(pg, "Show in Wingman"):button({ text = M.modsText(), press = Show.modules })
       else
@@ -167,13 +157,31 @@ return function(ctx)
   end
 
   -- ---------------------------------------------------------------------------
+  -- Battery page, stored with the model's Save
+  -- ---------------------------------------------------------------------------
+
+  function Show.battery()
+    local m = M.model
+    local pg = page("Battery  " .. M.name(m.filename), Show.model)
+    local L = M.LIMITS.cells
+    setting(pg, "Cells"):numberEdit({ min = L.min, max = L.max, get = function() return m.cells end,
+      set = function(v) m.cells = v end, display = function(v) return v .. "S" end })
+    setting(pg, "Parallel packs"):toggle({ get = function() return m.parallel end,
+      set = function(v) m.parallel = v == 1 end })
+    setting(pg, "Batteries"):button({ text = #m.batteryIds .. " selected", press = Show.assign })
+    setting(pg, "Sensors"):button({ text = M.sensorsAreCustom(m.sensors) and "custom" or "default",
+                                    press = function() M.openSensors(); Show.sensors() end })
+    buttons(pg, { { "Back", Show.model } })
+  end
+
+  -- ---------------------------------------------------------------------------
   -- Battery assignment
   -- ---------------------------------------------------------------------------
 
   function Show.assign()
     local m = M.model
     local items = M.assignItems()
-    local function back() M.applyAssign(items); Show.model() end
+    local function back() M.applyAssign(items); Show.battery() end
     local pg = page(m.parallel and ("Select " .. m.cells .. "S parallel profiles")
                     or ("Select " .. m.cells .. "S batteries"), back)
     if #items == 0 then note(pg, "No matching profiles.") end
@@ -189,7 +197,7 @@ return function(ctx)
   -- ---------------------------------------------------------------------------
 
   function Show.sensors()
-    local pg = page("Sensors  " .. M.name(M.model.filename), Show.model)
+    local pg = page("Sensors  " .. M.name(M.model.filename), Show.battery)
     for _, f in ipairs(M.SENSOR_FIELDS) do
       local labels = M.sensorChoices(f)
       setting(pg, f.label):choice({ title = f.unit and f.label or (f.label .. " sensor"), values = labels,
@@ -199,7 +207,7 @@ return function(ctx)
       if M.isActive then help(pg, f.desc) end
     end
     if not M.isActive then note(pg, "Activate this model to edit sensors.") end
-    buttons(pg, { { "Back", Show.model },
+    buttons(pg, { { "Back", Show.battery },
                   { "Reset to CRSF defaults", M.resetSensors, M.sensorsResetShown } })
   end
 
