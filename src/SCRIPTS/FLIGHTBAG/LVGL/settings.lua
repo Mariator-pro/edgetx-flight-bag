@@ -10,6 +10,9 @@
 -- =====================================================================
 
 return function(ctx)
+  local lib = ctx.lib
+  local function t(id, values) return lib.t("ui", id, values) end
+  local function tx(id, values) return lib.t("uix", id, values) end
   local M = loadScript("/SCRIPTS/FLIGHTBAG/settings_model.lua")()(ctx)
   local WIDE  = lvgl.PERCENT_SIZE + 100
   local VALUE = lvgl.PERCENT_SIZE + (LCD_W < 400 and 42 or 50)   -- x of the value column
@@ -17,7 +20,7 @@ return function(ctx)
 
   local function leave()
     if M.touched then
-      lvgl.confirm({ title = ctx.title, message = "Discard changes?", confirm = ctx.close })
+      lvgl.confirm({ title = ctx.title, message = t("discard"), confirm = ctx.close })
     else
       ctx.close()
     end
@@ -26,7 +29,7 @@ return function(ctx)
   local function save()
     local problems = M.save()
     if #problems > 0 then
-      lvgl.message({ title = "Save", message = table.concat(problems, "\n") })
+      lvgl.message({ title = t("save"), message = table.concat(problems, "\n") })
     else
       ctx.close()
     end
@@ -37,9 +40,9 @@ return function(ctx)
   end
   local function active(r) return function() return not r.off end end
 
-  -- "Mixed" beside a control while a shared value differs per app.
+  -- lib.t("rows", "mixed") beside a control while a shared value differs per app.
   local function mixedLabel(box, r)
-    box:label({ text = "Mixed", color = COLOR_THEME_WARNING,
+    box:label({ text = lib.t("rows", "mixed"), color = COLOR_THEME_WARNING,
                 visible = function() local _, mixed = M.rowValue(r); return mixed and not r.off end })
   end
 
@@ -73,11 +76,11 @@ return function(ctx)
   local function fix(r)
     local function write()
       if M.fixWrite(r) then M.reload(r); build()
-      else lvgl.message({ title = r.button, message = "Save failed. Check SD card." }) end
+      else lvgl.message({ title = r.button, message = t("saveFailed") }) end
     end
-    if r.button == "Create" then write()
+    if r.fix == "create" then write()
     else
-      lvgl.confirm({ title = r.button, message = "Replace the damaged settings file with factory settings?",
+      lvgl.confirm({ title = r.button, message = r.ask,
                      confirm = write })
     end
   end
@@ -98,10 +101,10 @@ return function(ctx)
     -- CENTER: in a row EdgeTX takes the vertical placement from the horizontal flag.
     local box = s:box({ x = VALUE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, align = CENTER })
     if r.kind == "sound" then
-      box:choice({ title = r.label .. " sound", values = M.soundLabels(r.block), active = active(r), w = SOUND_W,
+      box:choice({ title = t("soundPicker", { label = r.label }), values = M.soundLabels(r.block), active = active(r), w = SOUND_W,
                    get = function() return M.soundIndex(r) end,
                    set = function(i) M.setSound(r, i) end })
-      box:button({ text = "Play", press = function() M.playTest(r) end,
+      box:button({ text = t("play"), press = function() M.playTest(r) end,
                    active = function() return not r.off and not M.isMuted(r) end })
     else
       fieldControl(box, r)
@@ -114,11 +117,11 @@ return function(ctx)
     lvgl.clear()
     local pg = lvgl.page({ title = "Flight Bag", subtitle = ctx.title, back = leave,
                            flexFlow = lvgl.FLOW_COLUMN, flexPad = lvgl.PAD_SMALL })
-    if #M.rows == 0 then pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):label({ text = "Nothing to set here.", color = COLOR_THEME_PRIMARY1 }) end
+    if #M.rows == 0 then pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):label({ text = t("nothing"), color = COLOR_THEME_PRIMARY1 }) end
     for _, r in ipairs(M.rows) do addRow(pg, r) end
     pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_LARGE, children = {
-      { type = "button", text = "Back", w = lvgl.PERCENT_SIZE + 48, press = leave },
-      { type = "button", text = "Save", w = lvgl.PERCENT_SIZE + 48, press = save },
+      { type = "button", text = t("back"), w = lvgl.PERCENT_SIZE + 48, press = leave },
+      { type = "button", text = t("save"), w = lvgl.PERCENT_SIZE + 48, press = save },
     } })
   end
 

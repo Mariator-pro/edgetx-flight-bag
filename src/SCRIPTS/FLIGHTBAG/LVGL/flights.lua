@@ -10,6 +10,9 @@
 -- =====================================================================
 
 return function(ctx)
+  local lib = ctx.lib
+  local function t(id, values) return lib.t("ui", id, values) end
+  local function tx(id, values) return lib.t("uix", id, values) end
   local M = loadScript("/SCRIPTS/FLIGHTBAG/flights_model.lua")()(ctx)
   local flights, idx = M.flights, 1
   local C, DIM = COLOR_THEME_PRIMARY1, COLOR_THEME_DISABLED
@@ -19,9 +22,9 @@ return function(ctx)
   local pg = lvgl.page({ title = "Flight Bag", subtitle = ctx.title, back = ctx.close,
                          flexFlow = lvgl.FLOW_COLUMN, flexPad = lvgl.PAD_SMALL })
   if #flights == 0 then
-    pg:label({ text = "No flight logged yet.", color = C })
-    pg:label({ text = "A position is stored when the telemetry ends after a flight.", color = DIM })
-    pg:button({ text = "Back", w = lvgl.PERCENT_SIZE + 48, press = ctx.close })
+    pg:label({ text = t("noFlights"), color = C })
+    pg:label({ text = t("noFlightsHint"), color = DIM })
+    pg:button({ text = t("back"), w = lvgl.PERCENT_SIZE + 48, press = ctx.close })
     return
   end
 
@@ -37,8 +40,8 @@ return function(ctx)
   left:label({ text = function() return M.stamp(cur()) end, color = C })
   left:label({ text = function() return cur().model end, color = C,
                visible = function() return cur().model ~= "" end })
-  left:label({ text = "LAST POSITION", color = DIM })
-  for _, c in ipairs({ { "LAT", "lat" }, { "LON", "lon" } }) do
+  left:label({ text = t("lastPosition"), color = DIM })
+  for _, c in ipairs({ { t("lat"), "lat" }, { t("lon"), "lon" } }) do
     left:box({ flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, children = {
       { type = "label", text = c[1], color = DIM },
       { type = "label", text = function() return M.coord(cur()[c[2]]) end, color = C },
@@ -56,10 +59,10 @@ return function(ctx)
   end
   local third = lvgl.PERCENT_SIZE + 32
   left:box({ w = lvgl.PERCENT_SIZE + 100, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_SMALL, children = {
-    { type = "button", text = "Newer", w = third, press = function() go(-1) end,
+    { type = "button", text = tx("newer"), w = third, press = function() go(-1) end,
       active = function() return idx > 1 end },
-    { type = "button", text = "Older", w = third, press = function() go(1) end,
+    { type = "button", text = tx("older"), w = third, press = function() go(1) end,
       active = function() return idx < #flights end },
-    { type = "button", text = "Back", w = third, press = ctx.close },
+    { type = "button", text = t("back"), w = third, press = ctx.close },
   } })
 end

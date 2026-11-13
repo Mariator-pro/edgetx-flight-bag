@@ -33,6 +33,18 @@ local FILES = { warnings = "LVGL/settings.lua", alerts = "LVGL/settings.lua", ba
                 models = "LVGL/models.lua", flights = "LVGL/flights.lua", display = "LVGL/settings.lua" }
 
 local A, apps, menu
+
+-- Texts of the tool by id, in the language the apps' setting Language names.
+local function t(id, values) return A.t("ui", id, values) end
+
+-- After a page or popup closed: warning signs, the language (it may have been
+-- chosen or reset) and with it the menu.
+local function refresh()
+  A.unload(apps)
+  A.refreshWarnings(apps)
+  A.setLang(A.sharedLang(apps))
+  menu = A.menu(apps, FILES)
+end
 local exitTool = false
 local notice          -- lines shown instead of the tool (old firmware, missing files)
 
@@ -63,7 +75,7 @@ local function showNotice()
   lvgl.clear()
   local pg = lvgl.page({ title = TITLE, subtitle = "EdgeTX UI", back = function() exitTool = true end,
                          flexFlow = lvgl.FLOW_COLUMN, flexPad = lvgl.PAD_SMALL })
-  for _, t in ipairs(notice) do pg:label({ text = t, color = COLOR_THEME_PRIMARY1 }) end
+  for _, line in ipairs(notice) do pg:label({ text = line, color = COLOR_THEME_PRIMARY1 }) end
   pg:button({ text = "Exit", press = function() exitTool = true end })
 end
 
@@ -91,7 +103,7 @@ local function openRows(title, rows)
       { type = "label", text = tostring(r[2]), color = COLOR_THEME_PRIMARY1 },
     } })
   end
-  dg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):button({ text = "OK", w = lvgl.PERCENT_SIZE + 96,
+  dg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):button({ text = t("ok"), w = lvgl.PERCENT_SIZE + 96,
                                                         press = function() dg:close() end })
 end
 
@@ -102,8 +114,7 @@ openPopup = function(app)
   local function done()   -- once per popup, however it closes
     if closed then return end
     closed = true
-    A.unload(apps)
-    A.refreshWarnings(apps)
+    refresh()
   end
   local actions = A.popupActions(app)
   -- Rows of two buttons, three on wide screens.
@@ -117,7 +128,7 @@ openPopup = function(app)
     local ok = A.runAction(apps, app, act)
     dg:close(); done()
     openPopup(app)
-    lvgl.message({ title = act.label, message = ok and "Done." or "Save failed. Check SD card." })
+    lvgl.message({ title = act.label, message = t(ok and "saved" or "saveFailed") })
   end
   local buttons = {}
   for _, act in ipairs(actions) do
@@ -127,7 +138,7 @@ openPopup = function(app)
       else write(act) end
     end }
   end
-  buttons[#buttons + 1] = { "Close", function() dg:close(); done() end }
+  buttons[#buttons + 1] = { t("close"), function() dg:close(); done() end }
   local row
   for i, b in ipairs(buttons) do
     if (i - 1) % cols == 0 then row = dg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_SMALL }) end
@@ -144,20 +155,18 @@ local showStart
 local function openPage(p)
   local mk = loadModule(FILES[p.id])
   if type(mk) ~= "function" then
-    lvgl.message({ title = p.label, message = p.label .. " could not be started. Copy " .. BASE
-                                              .. " to the SD card again." })
+    lvgl.message({ title = p.label, message = t("pageFailed", { page = p.label, path = BASE }) })
     return
   end
   local function close()
-    A.unload(apps)
-    A.refreshWarnings(apps)
+    refresh()
     showStart()
   end
   lvgl.clear()
   local ok, err = pcall(mk, { lib = A, apps = A.pageApps(apps, p), allApps = apps, id = p.id, title = p.label, close = close })
   if not ok then
     close()
-    lvgl.message({ title = p.label, message = "Error: " .. tostring(err) })
+    lvgl.message({ title = p.label, message = t("pageError", { msg = tostring(err) }) })
   end
 end
 
@@ -177,14 +186,10 @@ end
 
 showStart = function()
   lvgl.clear()
-  local pg = lvgl.page({ title = TITLE, subtitle = "Settings", back = function() exitTool = true end,
+  local pg = lvgl.page({ title = TITLE, subtitle = A.t("uix", "settings"), back = function() exitTool = true end,
                          flexFlow = lvgl.FLOW_COLUMN, flexPad = lvgl.PAD_MEDIUM })
   if #apps == 0 then
-    for _, t in ipairs({ "No settings found.",
-                         "Flight Bag shows the settings of installed scripts.",
-                         "Copy a script to the SD card and open Flight Bag again." }) do
-      pg:label({ text = t, color = COLOR_THEME_PRIMARY1 })
-    end
+    pg:label({ text = t("noApps"), w = WIDE, color = COLOR_THEME_PRIMARY1 })
     return
   end
   -- Topics as buttons, several per row.
@@ -233,6 +238,7 @@ local function init()
   if notice then showNotice(); return end
   apps = A.scan()
   A.refreshWarnings(apps)
+  A.setLang(A.sharedLang(apps))
   menu = A.menu(apps, FILES)
   showStart()
 end

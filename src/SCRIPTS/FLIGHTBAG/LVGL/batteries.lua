@@ -1,5 +1,5 @@
 -- =====================================================================
--- batteries.lua  --  Flight Bag (EdgeTX UI) page "Batteries"
+-- batteries.lua  --  Flight Bag (EdgeTX UI) page lib.t("pages", "batteries")
 -- =====================================================================
 -- SD card path: /SCRIPTS/FLIGHTBAG/LVGL/batteries.lua
 -- Native view of batteries_model.lua: profile list, profile editor (name and
@@ -11,6 +11,9 @@
 -- =====================================================================
 
 return function(ctx)
+  local lib = ctx.lib
+  local function t(id, values) return lib.t("ui", id, values) end
+  local function tx(id, values) return lib.t("uix", id, values) end
   local M = loadScript("/SCRIPTS/FLIGHTBAG/batteries_model.lua")()(ctx)
   local WIDE  = lvgl.PERCENT_SIZE + 100
   local VALUE = lvgl.PERCENT_SIZE + (LCD_W < 400 and 42 or 50)   -- x of the value column
@@ -53,13 +56,13 @@ return function(ctx)
     return s:box({ x = VALUE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, align = CENTER })
   end
 
-  local function ask(message, yes) lvgl.confirm({ title = "Batteries", message = message, confirm = yes }) end
-  local function tell(message) lvgl.message({ title = "Batteries", message = message }) end
+  local function ask(message, yes) lvgl.confirm({ title = lib.t("pages", "batteries"), message = message, confirm = yes }) end
+  local function tell(message) lvgl.message({ title = lib.t("pages", "batteries"), message = message }) end
 
   -- Writes Lipo Nanny's file, then onDone; a failed write asks to retry.
   local function save(onDone)
     if M.write() then onDone()
-    else ask("Save failed. Check SD card. Retry?", function() save(onDone) end) end
+    else ask(tx("saveFailedRetry"), function() save(onDone) end) end
   end
 
   -- ---------------------------------------------------------------------------
@@ -69,17 +72,17 @@ return function(ctx)
   function Show.list()
     local pg = page(ctx.title, ctx.close)
     if M.broken then
-      pg:label({ text = "Lipo Nanny has no usable settings file.", color = COLOR_THEME_WARNING })
-      pg:label({ text = "Fix it in the Lipo Nanny app (start page).", color = C })
-      buttons(pg, { { "Back", ctx.close } })
+      pg:label({ text = t("lipoBroken"), color = COLOR_THEME_WARNING })
+      pg:label({ text = t("lipoBrokenFix"), color = C })
+      buttons(pg, { { t("back"), ctx.close } })
       return
     end
     local items = M.sorted()
-    if #items == 0 then pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):label({ text = "No batteries yet - add your first.", color = C }) end
+    if #items == 0 then pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW }):label({ text = t("noBatteries"), color = C }) end
     for _, b in ipairs(items) do
       listButton(pg, b.name, function() M.open(b); Show.profile() end)
     end
-    buttons(pg, { { "Back", ctx.close }, { "[+] Add new", function() M.open(nil); Show.profile() end } })
+    buttons(pg, { { t("back"), ctx.close }, { t("addNew"), function() M.open(nil); Show.profile() end } })
   end
 
   -- ---------------------------------------------------------------------------
@@ -103,7 +106,7 @@ return function(ctx)
   end
 
   local function cancelProfile()
-    if M.dirty() then ask("Discard changes?", Show.list) else Show.list() end
+    if M.dirty() then ask(t("discard"), Show.list) else Show.list() end
   end
 
   local function pctRow(pg, title, key)
@@ -111,36 +114,36 @@ return function(ctx)
     local box = setting(pg, title)
     box:numberEdit({ min = L.min, max = L.max, get = function() return M.pct(key) end,
       set = function(v) M.setPct(key, v) end, display = function(v) return v .. " %" end })
-    box:label({ text = "(default)", color = COLOR_THEME_DISABLED, visible = function() return M.prof[key] == nil end })
+    box:label({ text = tx("defaultMark"), color = COLOR_THEME_DISABLED, visible = function() return M.prof[key] == nil end })
   end
 
   function Show.profile()
     local p = M.prof
-    local pg = page(M.isNew and "Add battery" or "Edit battery", cancelProfile)
+    local pg = page(M.isNew and tx("addBattery") or tx("editBattery"), cancelProfile)
     -- The value as a function shows a new auto name (:set would shrink the
     -- field to zero height).
-    local nameBox = setting(pg, function() return p.nameAuto and "Name (auto)" or "Name" end)
+    local nameBox = setting(pg, function() return p.nameAuto and tx("nameAuto") or t("name") end)
     nameBox:textEdit({ value = function() return p.name end, length = M.TEXT_MAX.name, w = TEXT_W,
                        set = function(s) M.setText(1, s) end })
-    setting(pg, "Manufacturer"):textEdit({ value = p.manufacturer, length = M.TEXT_MAX.mfr,
+    setting(pg, t("manufacturer")):textEdit({ value = p.manufacturer, length = M.TEXT_MAX.mfr,
       w = TEXT_W, set = function(s) M.setText(2, s) end })
-    setting(pg, "Chemistry"):choice({ title = "Chemistry", values = M.CHEM_NAMES,
+    setting(pg, t("chemistry")):choice({ title = t("chemistry"), values = M.CHEM_NAMES,
       get = M.chemIndex, set = M.setChemistry })
     local L = M.LIMITS.capacityMah
-    setting(pg, "Capacity"):numberEdit({ min = math.ceil(L.min / CAP_STEP), max = math.floor(L.max / CAP_STEP),
+    setting(pg, t("capacity")):numberEdit({ min = math.ceil(L.min / CAP_STEP), max = math.floor(L.max / CAP_STEP),
       get = function() return math.floor(p.capacityMah / CAP_STEP + 0.5) end,
       set = function(v) M.setCapacity(v * CAP_STEP) end,
       display = function(v) return (v * CAP_STEP) .. " mAh" end })
     L = M.LIMITS.cells
-    setting(pg, "Cells"):numberEdit({ min = L.min, max = L.max, get = function() return p.cells end,
+    setting(pg, t("cells")):numberEdit({ min = L.min, max = L.max, get = function() return p.cells end,
       set = M.setCells, display = function(v) return v .. "S" end })
-    setting(pg, "Packs"):button({ text = tostring(#p.instances), press = Show.packs })
-    setting(pg, "Statistics"):button({ text = "Show", press = Show.stats })
-    pctRow(pg, "Battery low", "warnPct")
-    pctRow(pg, "Battery critical", "critPct")
-    local list = { { "Back", cancelProfile }, { "Save", saveProfile } }
-    if not M.isNew then list[#list + 1] = { "Delete", deleteProfile } end
-    list[#list + 1] = { "Reset name", M.resetName, function() return not p.nameAuto end }
+    setting(pg, t("packs")):button({ text = tostring(#p.instances), press = Show.packs })
+    setting(pg, t("statistics")):button({ text = tx("show"), press = Show.stats })
+    pctRow(pg, t("batteryLow"), "warnPct")
+    pctRow(pg, t("batteryCritical"), "critPct")
+    local list = { { t("back"), cancelProfile }, { t("save"), saveProfile } }
+    if not M.isNew then list[#list + 1] = { t("delete"), deleteProfile } end
+    list[#list + 1] = { t("resetName"), M.resetName, function() return not p.nameAuto end }
     buttons(pg, list)
   end
 
@@ -154,12 +157,12 @@ return function(ctx)
 
   function Show.packs()
     local p = M.prof
-    local pg = page("Packs - " .. p.name, Show.profile)
+    local pg = page(tx("packsOf", { name = p.name }), Show.profile)
     pg:box({ w = WIDE, h = H, children = {
-      { type = "label", x = 0, y = lvgl.PAD_SMALL, text = "ID", font = BOLD, color = C },
-      { type = "label", x = PK.cyc, y = lvgl.PAD_SMALL, text = "Cycles", font = BOLD, color = C },
-      { type = "label", x = PK.wear, y = lvgl.PAD_SMALL, text = "Wear", font = BOLD, color = C },
-      { type = "label", x = PK.buy, y = lvgl.PAD_SMALL, text = "Bought", font = BOLD, color = C },
+      { type = "label", x = 0, y = lvgl.PAD_SMALL, text = t("colId"), font = BOLD, color = C },
+      { type = "label", x = PK.cyc, y = lvgl.PAD_SMALL, text = t("colCycles"), font = BOLD, color = C },
+      { type = "label", x = PK.wear, y = lvgl.PAD_SMALL, text = t("colWear"), font = BOLD, color = C },
+      { type = "label", x = PK.buy, y = lvgl.PAD_SMALL, text = t("colBought"), font = BOLD, color = C },
     } })
     for i, pack in ipairs(p.instances) do
       local row = pg:box({ w = WIDE, h = H })
@@ -182,7 +185,7 @@ return function(ctx)
         Show.packs()
       end })
     end
-    buttons(pg, { { "Back", Show.profile }, { "[+] Add pack", function()
+    buttons(pg, { { t("back"), Show.profile }, { t("addPack"), function()
       local msg = M.addPack()
       if msg then tell(msg) else Show.packs() end
     end } })
@@ -194,19 +197,19 @@ return function(ctx)
 
   function Show.stats()
     local p = M.prof
-    local pg = page("Statistics - " .. p.name, Show.profile)
+    local pg = page(tx("statsOf", { name = p.name }), Show.profile)
     local SX = { at(0.12), at(0.30), at(0.52), at(0.70) }
     local function row(cells, font)
       local r = pg:box({ w = WIDE, h = lvgl.UI_ELEMENT_HEIGHT })
       r:label({ x = 0, text = cells[1], font = font, color = C })
       for j = 2, 5 do r:label({ x = SX[j - 1], text = cells[j], font = font, color = C }) end
     end
-    row({ "ID", "Cycles", "Life mAh", "Vmin", "Last used" }, BOLD)
+    row({ t("colId"), t("colCycles"), t("colLifeMah"), t("colVmin"), t("colLastUsed") }, BOLD)
     for _, pack in ipairs(p.instances) do
       row({ "#" .. pack.label, tostring(pack.cycles or 0), tostring(pack.totalMah or 0),
             pack.minVCell and string.format("%.2f", pack.minVCell) or "-", pack.lastUsed or "-" })
     end
-    buttons(pg, { { "Back", Show.profile } })
+    buttons(pg, { { t("back"), Show.profile } })
   end
 
   Show.list()
