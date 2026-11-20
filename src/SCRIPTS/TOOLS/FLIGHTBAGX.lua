@@ -66,6 +66,7 @@ end
 
 local WIDE = lvgl and lvgl.PERCENT_SIZE + 100
 local ICON = lvgl and lvgl.UI_ELEMENT_HEIGHT   -- app icon size, as tall as the button beside it
+local FADE = 170   -- opacity (0 to 255) of the background over the icon of an app the model does not use
 
 -- ---------------------------------------------------------------------------
 -- Notice page (old firmware, missing files)
@@ -202,18 +203,21 @@ showStart = function()
     end
     row:button({ text = p.label, w = bw, h = lvgl.UI_ELEMENT_HEIGHT * 2, press = function() openPage(p) end })
   end
-  -- Apps: icon, name and version on a button, warning sign beside it.
+  -- Apps: icon, name and version on a button, warning sign beside it. An app
+  -- the active model does not use (app.off) has its icon faded into the
+  -- background.
   for _, app in ipairs(apps) do
     local r = pg:box({ w = WIDE, flexFlow = lvgl.FLOW_ROW, flexPad = lvgl.PAD_MEDIUM, align = LEFT + VCENTER })
+    local ib = r:box({ w = ICON, h = ICON, scrollBar = false })
     if app.iconPath then
-      r:image({ file = app.iconPath, w = ICON, h = ICON })
+      ib:image({ file = app.iconPath, w = ICON, h = ICON })
     else
-      r:box({ w = ICON, h = ICON, children = {
-        { type = "rectangle", w = ICON, h = ICON, filled = true, color = COLOR_THEME_SECONDARY1 },
-        { type = "label", y = math.floor(ICON / 4), w = ICON, align = CENTER, font = BOLD,
-          text = string.sub(app.folder, 1, 1), color = COLOR_THEME_PRIMARY2 },
-      } })
+      ib:rectangle({ w = ICON, h = ICON, filled = true, color = COLOR_THEME_SECONDARY1 })
+      ib:label({ y = math.floor(ICON / 4), w = ICON, align = CENTER, font = BOLD,
+                 text = string.sub(app.folder, 1, 1), color = COLOR_THEME_PRIMARY2 })
     end
+    ib:rectangle({ w = ICON, h = ICON, filled = true, color = COLOR_THEME_SECONDARY3, opacity = FADE,
+                   visible = function() return app.off ~= nil end })
     r:button({ text = (app.name or app.folder) .. (app.version and ("   v" .. app.version) or ""),
                w = lvgl.PERCENT_SIZE + 70, h = ICON, press = function() openPopup(app) end })
     warnSign(r:box({ w = ICON, h = ICON, scrollBar = false }), 2, 2, ICON - 4, app)
